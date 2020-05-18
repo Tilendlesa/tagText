@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8">
+	<link href="/static/css/style.css" type="text/css" rel="stylesheet" />
+	<script src="/static/config/axios.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+
+</head>
+<body>
+<div id="box" style="overflow-x:auto;width:1200px;height:1000px;">
+	<fieldset style="height:50%;width:60%;float:left">
+		<div id="text" @mouseup="handleMouseup()">{{filetext}}</div>
+	</fieldset>
+
+
+	<fieldset style="height:50%;width:30%">
+		<div style="overflow-y:auto;height:30%;width:100%">
+			<form>
+				<span v-for="(data,index) in datalist">
+					<input type="radio" name="item" :value="data" /><span :class="'index'+index">{[data]}</span><br>
+				</span>
+			</form><br>
+				
+		</div>
+		<div style="height:70%;width:100%">
+			<br><button @click="handleUpload()">上传</button>&nbsp;&nbsp;<button @click="handleRestart()">重置</button>&nbsp;&nbsp;<button @click="handleCancel()">撤销</button><br><br>
+			<form action = "/uploader" method = "POST" enctype = "multipart/form-data">
+				<input type = "file" name = "file" /><input type = "submit"/>
+			   </form><br>
+			   <p id="result"></p>
+		</div>
+	</fieldset>
+</div>
+<script type="text/javascript">
+	new Vue({
+		delimiters: ['{[', ']}'],
+		el:"#box",
+		data:{
+			datalist:[],
+			lastHTML:[],//记录撤销页面
+			
+		},
+		methods:{
+			handleUpload(){
+				var data={}
+				var hasLoad={} //上传时记录已计算字段防止重复记录
+				Str = document.getElementById("text").innerText
+				//初始化
+				for(index in this.datalist){
+					var item = this.datalist[index]
+					data[item]=[]
+					hasLoad[item]=[]
+					var selection = document.getElementsByClassName('coverage'+index)
+					for(var i = 0; i < selection.length; i++){
+						var textStr = selection[i].innerText;
+						//遍历全文匹配字段
+						if(!(hasLoad[item].indexOf(textStr)>-1)){
+							hasLoad[item].push(textStr)
+							var pos = Str.indexOf(textStr)
+							while(pos > -1){
+								data[item].push([textStr,pos,pos+textStr.length])
+								pos = Str.indexOf(textStr,pos+textStr.length)
+							}
+						}	
+					}
+				}
+				
+				console.log(data)	
+				axios.post('/getjson',data).then(res=>{
+					document.getElementById("result").innerText="上传成功";
+				}).catch(err=>{
+					document.getElementById("result").innerText="上传失败";
+				})
+			},
+			handleMouseup(){
+				var value = null;
+				var obj = document.getElementsByName("item")
+				for (var i = 0; i < obj.length; i++) { //遍历Radio 
+					if (obj[i].checked) {
+						value = obj[i].value;  
+						break;                 
+					}
+				}
+				this.lastHTML.push(document.getElementById("text").innerHTML)
+				var text=window.getSelection();
+				var textStr=text.toString();
+				var preNode = text.anchorNode.parentNode;
+				//限制跨区划取
+				if(textStr.trim!=""&&value&&preNode==text.focusNode.parentNode){
+					//上色
+					//同色不做操作
+					var index = this.datalist.indexOf(value) 
+					if(preNode.className!="coverage"+index){
+						var range=text.getRangeAt(0);
+						var ele = document.createElement("span");
+						ele.className="coverage"+index;
+						range.surroundContents(ele);
+					}		
+					//document.getElementById("text").innerHTML=document.getElementById("text").innerHTML //链接文本节点
+				}
+
+				window.getSelection().removeAllRanges();
+			},
+			handleCancel(){
+				if(!this.lastHTML.length==0) document.getElementById("text").innerHTML = this.lastHTML.pop()
+
+			},
+			handleRestart(){
+				this.lastHTML.push(document.getElementById("text").innerHTML)
+				document.getElementById("text").innerHTML = document.getElementById("text").innerText
+			}
+		},
+		mounted(){
+			axios.get("/static/config/config.json").then(res=>{
+					//console.log(res.data.item)
+					this.datalist=res.data.item
+				}).catch(err=>{
+					alert(err)
+				})
+		}
+	})
+</script>
+	
+</body>
+</html>
